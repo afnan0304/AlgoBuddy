@@ -32,14 +32,15 @@ test("createLinkedListTempNode renders untrusted input as text, not HTML", async
     payload,
     "untrusted input must be assigned via textContent",
   );
+  // In a safe implementation, HTML characters remain escaped in innerHTML.
+  // (We do not rely on inline handler execution semantics in JSDOM.)
+  assert.ok(
+    dataPart.innerHTML.includes("&lt;img"),
+    "untrusted input must remain escaped (no HTML parsing)",
+  );
   assert.equal(
     dataPart.querySelector("img"),
     null,
     "untrusted input must not be parsed into DOM elements",
-  );
-  assert.equal(
-    globalThis.__xss,
-    undefined,
-    "untrusted input must not execute handlers in test env",
   );
 });
