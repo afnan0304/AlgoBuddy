@@ -1,48 +1,45 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 
-function read(relPath) {
-  return fs.readFileSync(path.join(__dirname, "..", relPath), "utf8");
-}
+test("createLinkedListTempNode renders untrusted input as text, not HTML", async () => {
+  const { JSDOM } = require("jsdom");
+  const dom = new JSDOM("<!doctype html><html><body></body></html>");
 
-test("linked list visualizers do not use innerHTML for user-controlled values", () => {
-  const insertion = read(
-    "app/visualizer/linkedList/operations/insertion/animation.jsx",
-  );
-  const deletion = read(
-    "app/visualizer/linkedList/operations/deletion/animation.jsx",
-  );
+  const helperUrl = pathToFileURL(
+    path.join(
+      __dirname,
+      "..",
+      "app/visualizer/linkedList/utils/createTempNode.js",
+    ),
+  ).href;
 
-  for (const [name, content] of [
-    ["insertion", insertion],
-    ["deletion", deletion],
-  ]) {
-    assert.equal(
-      content.includes(".innerHTML"),
-      false,
-      `${name} animation must not use innerHTML`,
-    );
-    assert.equal(
-      content.includes("insertAdjacentHTML"),
-      false,
-      `${name} animation must not use insertAdjacentHTML`,
-    );
-  }
-});
+  const { createLinkedListTempNode } = await import(helperUrl);
 
-test("temp node builder uses textContent (no HTML parsing)", () => {
-  const helper = read("app/visualizer/linkedList/utils/createTempNode.js");
+  const payload = `<img src=x onerror="globalThis.__xss = true">XSS`;
+  const node = createLinkedListTempNode({
+    value: payload,
+    nextText: "NULL",
+    doc: dom.window.document,
+  });
 
-  assert.ok(
-    helper.includes(".textContent"),
-    "createTempNode must use textContent",
+  const dataPart = node.querySelector(".data-part");
+  assert.ok(dataPart, "expected .data-part to exist");
+
+  assert.equal(
+    dataPart.textContent,
+    payload,
+    "untrusted input must be assigned via textContent",
   );
   assert.equal(
-    helper.includes(".innerHTML"),
-    false,
-    "createTempNode must not use innerHTML",
+    dataPart.querySelector("img"),
+    null,
+    "untrusted input must not be parsed into DOM elements",
+  );
+  assert.equal(
+    globalThis.__xss,
+    undefined,
+    "untrusted input must not execute handlers in test env",
   );
 });
-

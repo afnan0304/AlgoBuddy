@@ -1,5 +1,3 @@
-"use client";
-
 export function createLinkedListTempNode({
   value,
   nextText = "NULL",
@@ -29,4 +27,3 @@ export function createLinkedListTempNode({
 
   return tempNode;
 }
-
