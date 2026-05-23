@@ -5,13 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useUser } from "@/app/contexts/UserContext";
 import { supabase } from "@/lib/supabase";
 import {Moon,Sun,Menu,X,ChevronDown,LayoutDashboard,LogOut,} from "lucide-react";
-
-const NAV_LINKS = [
-  { href: "/", label: "Home" },
-  { href: "/visualizer", label: "Visualizer" },
-  { href: "/blogs", label: "Blogs" },
-  { href: "/dashboard", label: "Dashboard" },
-];
+import { NAV_LINKS } from "./navLinks";
 
 function getStoredTheme() {
   if (typeof window === "undefined") return "light";
