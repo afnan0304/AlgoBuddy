@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../../lib/supabase";
 import { useRouter } from "next/navigation";
 import { Mail, Lock, User, LogIn, UserPlus, Loader2 } from "lucide-react";
@@ -46,15 +46,8 @@ export default function LoginPage() {
         const data = await res.json();
         if (!data.success)
           throw new Error(data.message || "Login failed");
-
-        // Restore the session returned by the server
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
-        });
-        if (sessionError) throw sessionError;
-
         router.push("/dashboard");
+        router.refresh();
       } else {
         // Signup flow remains the same
         const res = await fetch("/api/auth", {
@@ -81,11 +74,58 @@ export default function LoginPage() {
   };
 
   const handleGoogleSignIn = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-    });
-    if (error) console.error("Google sign-in error:", error.message);
+    try {
+      const redirectTo = `${window.location.origin}/api/auth/callback?from=/dashboard`;
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo },
+      });
+      if (error) console.error("Google sign-in error:", error.message);
+    } catch (err) {
+      console.error("OAuth initiation failed:", err);
+    }
   };
+
+  // After an OAuth redirect the supabase client may hold the session in memory.
+  // Bridge it to the server so the server can set HttpOnly cookies and we avoid
+  // persisting tokens to localStorage (client lib is configured with
+  // persistSession: false).
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!mounted || !session) return;
+
+        // If we have an access/refresh token in memory, send them to the bridge
+        // endpoint which will set server-side HttpOnly cookies.
+        const res = await fetch("/api/auth/bridge", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            access_token: session.access_token,
+            refresh_token: session.refresh_token,
+          }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          // Clear the client in-memory session to avoid dual-session confusion.
+          await supabase.auth.signOut();
+          router.push("/dashboard");
+          router.refresh();
+        } else {
+          console.error("Bridge failed:", data.message);
+        }
+      } catch (err) {
+        // No-op; this effect simply attempts to bridge if an OAuth session exists.
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-udemy-surface dark:bg-udemy-dark-bg">

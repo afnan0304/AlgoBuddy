@@ -1,12 +1,41 @@
-import { createClient } from "@supabase/supabase-js";
+import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co",
-  process.env.SUPABASE_SERVICE_KEY || "placeholder-key",
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    "Missing required Supabase env vars: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY",
+  );
+}
+
+function createAuthClient(cookieStore) {
+  return createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        for (const { name, value, options } of cookiesToSet) {
+          cookieStore.set(name, value, {
+            ...options,
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            path: options?.path ?? "/",
+          });
+        }
+      },
+    },
+  });
+}
 
 export async function POST(req) {
   try {
+    const cookieStore = await cookies();
+    const supabase = createAuthClient(cookieStore);
+
     // Parse JSON body safely
     const body = await req.json();
     const { email, password, captchaToken, action, name } = body || {};
@@ -53,7 +82,7 @@ export async function POST(req) {
 
     if (action === "signup") {
       // Create Supabase user with metadata
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -76,12 +105,7 @@ export async function POST(req) {
       );
     } else if (action === "login") {
       // Verify captcha, then perform login server-side
-      const client = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co",
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key",
-      );
-
-      const { data, error } = await client.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -97,10 +121,6 @@ export async function POST(req) {
         JSON.stringify({
           success: true,
           message: "Login successful",
-          session: {
-            access_token: data.session.access_token,
-            refresh_token: data.session.refresh_token,
-          },
         }),
         { status: 200 },
       );
@@ -117,6 +137,64 @@ export async function POST(req) {
     console.error("API Error:", err);
     return new Response(
       JSON.stringify({ success: false, message: "Internal server error" }),
+      { status: 500 },
+    );
+  }
+}
+
+export async function GET() {
+  try {
+    const cookieStore = await cookies();
+    const supabase = createAuthClient(cookieStore);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return new Response(
+        JSON.stringify({ authenticated: false, user: null }),
+        { status: 200, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
+    // Return a minimal, non-sensitive DTO. Do not include tokens or any
+    // raw authentication credentials.
+    const safeUser = {
+      id: user.id,
+      email: user.email,
+      role: user?.role ?? null,
+      user_metadata: {
+        display_name: user?.user_metadata?.display_name ?? null,
+      },
+    };
+
+    return new Response(
+      JSON.stringify({ authenticated: true, user: safeUser }),
+      { status: 200, headers: { "Cache-Control": "no-store" } },
+    );
+  } catch (err) {
+    console.error("Session fetch error:", err);
+    return new Response(
+      JSON.stringify({ authenticated: false, user: null }),
+      { status: 200, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+}
+
+export async function DELETE() {
+  try {
+    const cookieStore = await cookies();
+    const supabase = createAuthClient(cookieStore);
+    await supabase.auth.signOut();
+
+    return new Response(
+      JSON.stringify({ success: true }),
+      { status: 200 },
+    );
+  } catch (err) {
+    console.error("Logout error:", err);
+    return new Response(
+      JSON.stringify({ success: false, message: "Logout failed" }),
       { status: 500 },
     );
   }

@@ -1,30 +1,40 @@
 "use client";
 import { createContext, useContext, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
 
 const UserContext = createContext();
 
 export const UserProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const getSessionAndUser = async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session) {
-        return;
-      }
+      try {
+        const response = await fetch("/api/auth", {
+          method: "GET",
+          cache: "no-store",
+        });
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUser(user);
+        if (!response.ok) {
+          setUser(null);
+          return;
+        }
+
+        const data = await response.json();
+        setUser(data?.user ?? null);
+      } catch (error) {
+        console.error("Failed to resolve session:", error);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
     };
 
     getSessionAndUser();
   }, []);
 
   return (
-    <UserContext.Provider value={{ user, setUser }}>
+    <UserContext.Provider value={{ user, setUser, loading }}>
       {children}
     </UserContext.Provider>
   );

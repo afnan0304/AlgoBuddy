@@ -46,6 +46,7 @@ export default function Navbar() {
   }, []);
 
   const handleLogout = async () => {
+    await fetch("/api/auth", { method: "DELETE" });
     await supabase.auth.signOut();
     setUser(null);
     router.push("/");
