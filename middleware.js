@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/supabaseConfig";
 
 export async function middleware(request) {
   let supabaseResponse = NextResponse.next({ request });
@@ -9,8 +10,8 @@ export async function middleware(request) {
   // propagates the new cookies into both the outgoing request and response so
   // that server components and client components see consistent session state.
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() {

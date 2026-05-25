@@ -1,13 +1,22 @@
 import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/supabaseConfig";
+
+function requireEnv(name, value) {
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+
+  return value;
+}
 
 // Service-role client is only used for signup so it can create users regardless
 // of RLS policies. It is never used for login — that goes through the anon client
 // so that Supabase's own per-user RLS applies from the first request.
 const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co",
-  process.env.SUPABASE_SERVICE_KEY || "placeholder-key",
+  SUPABASE_URL,
+  requireEnv("SUPABASE_SERVICE_KEY", process.env.SUPABASE_SERVICE_KEY),
 );
 
 async function verifyTurnstile(captchaToken) {
@@ -107,8 +116,8 @@ export async function POST(req) {
       // createServerClient writes the session into cookies automatically when
       // signInWithPassword resolves. Tokens are never placed in the response body.
       const client = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co",
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key",
+        SUPABASE_URL,
+        SUPABASE_ANON_KEY,
         {
           cookies: {
             getAll() {
