@@ -1,4 +1,8 @@
 import { checkRateLimit } from "@/lib/rateLimit";
+import { getClientIp } from "@/lib/getClientIp";
+import { verifyTurnstile } from "@/lib/verifyTurnstile";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 
 const MAX_MESSAGES_PER_REQUEST = 20;
 const MAX_TOTAL_CHARS = 4000;
@@ -17,19 +21,11 @@ Capabilities & Guidelines:
 7. Keep responses concise and structured. Do not overwhelm the user with walls of text.
 8. If asked about something unrelated to programming, computer science, or DSA, politely redirect the conversation back to algorithms and data structures.`;
 
-function getClientIp(headers) {
-  const forwardedFor = headers.get("x-forwarded-for");
-  if (forwardedFor) {
-    const first = forwardedFor.split(",")[0]?.trim();
-    if (first) return first;
-  }
-  const realIp = headers.get("x-real-ip");
-  if (realIp) return realIp.trim();
-  return "unknown";
-}
+    const { data: authData } = await supabase.auth.getUser();
+    if (!authData?.user) {
+      return Response.json({ error: "Unauthorized." }, { status: 401 });
+    }
 
-export async function POST(req) {
-  try {
     // 1. Parse Request Body
     let body;
     try {
@@ -154,7 +150,7 @@ export async function POST(req) {
   } catch (error) {
     console.error("Chatbot API error:", error);
     return Response.json(
-      { error: error.message || "An error occurred while processing your request." },
+      { error: "An error occurred while processing your request." },
       { status: 500 }
     );
   }
