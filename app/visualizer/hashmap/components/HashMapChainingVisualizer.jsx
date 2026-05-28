@@ -1,5 +1,6 @@
 "use client";
 import React, { useMemo, useState } from "react";
+import useVisualizerReset from "@/app/hooks/useVisualizerReset";
 import { AnimatePresence, motion } from "framer-motion";
 
 const TABLE_SIZE = 8;
@@ -18,6 +19,19 @@ const HashMapChainingVisualizer = ({ mode = "insert" }) => {
   const [highlightIndex, setHighlightIndex] = useState(null);
   const [activeNode, setActiveNode] = useState({ bucket: null, index: null });
   const [collisionIndex, setCollisionIndex] = useState(null);
+  useVisualizerReset(() => {
+    setHashMap(makeTable());
+    setKeyInput("");
+    setValueInput("");
+    setInsertKey("");
+    setInsertValue("");
+    setOperation(null);
+    setToast(null);
+    setIsAnimating(false);
+    setHighlightIndex(null);
+    setActiveNode({ bucket: null, index: null });
+    setCollisionIndex(null);
+  });
 
   const totalCollisions = useMemo(
     () => hashMap.reduce((sum, bucket) => sum + Math.max(0, bucket.length - 1), 0),
